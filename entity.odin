@@ -32,7 +32,9 @@ Bullet_Data :: struct {
 	bullet_speed: f32,
 }
 
-Enemy_Data :: struct {}
+Enemy_Data :: struct {
+	move_speed: f32,
+}
 
 create_entity :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 	entity := Entity {
@@ -52,7 +54,9 @@ create_entity :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 			bullet_speed = 700.0,
 		}
 	case .Enemy:
-		entity.data = Enemy_Data{}
+		entity.data = Enemy_Data {
+			move_speed = 200.0,
+		}
 	}
 
 	append(&game.entities, entity)

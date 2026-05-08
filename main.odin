@@ -1,10 +1,13 @@
 package main
 
 import k2 "../../SDKs/karl2d"
+import "core:math/rand"
 
 Game :: struct {
-	player_index: int,
-	entities:     [dynamic]Entity,
+	player_index:         int,
+	entities:             [dynamic]Entity,
+	enemy_spawn_tickrate: f32,
+	enemy_spawn_timer:    f32,
 }
 
 game: Game
@@ -12,7 +15,10 @@ game: Game
 main :: proc() {
 	k2.init(720, 800, "k2d test")
 
-	game = {}
+	game = {
+		enemy_spawn_tickrate = 1,
+		enemy_spawn_timer    = 1,
+	}
 
 	player := create_entity_at(
 		&game,
@@ -26,6 +32,7 @@ main :: proc() {
 		if k2.key_went_down(.Escape) do break
 
 		handle_input(&game)
+		update_enemy_spawner(&game)
 		update_entities(&game)
 		draw(&game)
 		cleanup_inactive_entities(&game)
@@ -55,6 +62,17 @@ handle_input :: proc(game: ^Game) {
 			bullet_data := bullet.data.(Bullet_Data)
 			bullet.velocity = k2.Vec2{0, -bullet_data.bullet_speed}
 		}
+	}
+}
+
+update_enemy_spawner :: proc(game: ^Game) {
+	game.enemy_spawn_timer -= k2.get_frame_time()
+
+	if game.enemy_spawn_timer < 0 {
+		game.enemy_spawn_timer = game.enemy_spawn_tickrate
+		enemy := create_entity_at(game, .Enemy, {f32(rand.int_max(k2.get_screen_width())), -100})
+		enemy_data := enemy.data.(Enemy_Data)
+		enemy.velocity = k2.Vec2{0, enemy_data.move_speed}
 	}
 }
 
@@ -91,7 +109,10 @@ draw :: proc(game: ^Game) {
 			k2.draw_rect({e.position.x, e.position.y, 64, 64}, k2.BLUE, {32, 32})
 
 		case .Bullet:
-			k2.draw_circle(e.position, 4, k2.RED)
+			k2.draw_circle(e.position, 4, k2.YELLOW)
+
+		case .Enemy:
+			k2.draw_rect_outline({e.position.x, e.position.y, 32, 32}, 4.0, k2.RED)
 		}
 	}
 
