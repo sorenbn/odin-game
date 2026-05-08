@@ -34,7 +34,9 @@ main :: proc() {
 		handle_input(&game)
 		update_enemy_spawner(&game)
 		update_entities(&game)
+		update_collisions(&game)
 		draw(&game)
+		draw_debug(&game)
 		cleanup_inactive_entities(&game)
 	}
 
@@ -98,6 +100,29 @@ update_entities :: proc(game: ^Game) {
 	}
 }
 
+update_collisions :: proc(game: ^Game) {
+	for &entity, i in game.entities {
+		if !entity.active || !entity.active_collider do continue
+
+		for &other in game.entities[i + 1:] {
+			if !other.active || !other.active_collider do continue
+
+			entity_rect := get_world_collider_rect(entity)
+			other_rect := get_world_collider_rect(other)
+
+			if !k2.rect_overlapping(entity_rect, other_rect) do continue
+
+			if entity.kind == .Bullet && other.kind == .Enemy {
+				entity.active = false
+				other.active = false
+			} else if entity.kind == .Enemy && other.kind == .Bullet {
+				entity.active = false
+				other.active = false
+			}
+		}
+	}
+}
+
 draw :: proc(game: ^Game) {
 	k2.clear(k2.BLACK)
 
@@ -106,13 +131,40 @@ draw :: proc(game: ^Game) {
 
 		#partial switch e.kind {
 		case .Player:
-			k2.draw_rect({e.position.x, e.position.y, 64, 64}, k2.BLUE, {32, 32})
+			k2.draw_rect({e.position.x, e.position.y, 64, 64}, k2.GRAY, e.pivot)
 
 		case .Bullet:
 			k2.draw_circle(e.position, 4, k2.YELLOW)
 
 		case .Enemy:
-			k2.draw_rect_outline({e.position.x, e.position.y, 32, 32}, 4.0, k2.RED)
+			k2.draw_rect_outline(
+				{e.position.x - e.pivot.x, e.position.y - e.pivot.y, 32, 32},
+				4.0,
+				k2.RED,
+			)
+		}
+	}
+
+	k2.present()
+}
+
+draw_debug :: proc(game: ^Game) {
+	for e in game.entities {
+		if !e.active do continue
+
+		if e.active_collider {
+
+			#partial switch e.kind {
+			case .Enemy, .Player:
+				k2.draw_rect(get_world_collider_rect(e), {0, 255, 0, 125})
+
+			case .Bullet:
+				k2.draw_rect(
+					{e.position.x, e.position.y, e.collider.w, e.collider.h},
+					k2.GREEN,
+					{e.collider.w / 2, e.collider.h / 2},
+				)
+			}
 		}
 	}
 
