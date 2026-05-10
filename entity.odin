@@ -17,6 +17,7 @@ Entity :: struct {
 	active:          bool,
 	active_collider: bool,
 	collider:        k2.Rect,
+	texture:         ^k2.Texture,
 	data:            Entity_Data,
 }
 
@@ -51,6 +52,7 @@ entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 		entity.pivot = {32, 32}
 		entity.active_collider = true
 		entity.collider = {0, 0, 64, 64}
+		entity.texture = &game.assets.player
 		entity.data = Player_Data {
 			shot_rate   = 0.1,
 			shoot_timer = 0.0,
@@ -59,6 +61,7 @@ entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 	case .Bullet:
 		entity.active_collider = true
 		entity.collider = {0, 0, 10, 10}
+		entity.texture = &game.assets.bullet
 		entity.data = Bullet_Data {
 			bullet_speed = 900.0,
 		}

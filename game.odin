@@ -1,15 +1,20 @@
 package main
 
 import k2 "../../SDKs/karl2d"
-import "core:fmt"
 import "core:math/linalg"
 import "core:math/rand"
 
 Game :: struct {
 	player_index:         int,
 	entities:             [dynamic]Entity,
+	assets:               Assets,
 	enemy_spawn_tickrate: f32,
 	enemy_spawn_timer:    f32,
+}
+
+Assets :: struct {
+	player: k2.Texture,
+	bullet: k2.Texture,
 }
 
 game: Game
@@ -20,7 +25,13 @@ SCREEN_HEIGHT :: 720
 main :: proc() {
 	k2.init(SCREEN_WIDTH, SCREEN_HEIGHT, "k2d test")
 
+	assets := Assets {
+		player = k2.load_texture_from_file("Art/Player.png"),
+		bullet = k2.load_texture_from_file("Art/Bullet.png"),
+	}
+
 	game = {
+		assets               = assets,
 		enemy_spawn_tickrate = 1,
 		enemy_spawn_timer    = 1,
 	}
@@ -82,7 +93,7 @@ handle_input :: proc(game: ^Game) {
 	if k2.mouse_button_is_held(.Left) {
 		if player_data.shoot_timer < 0 {
 			player_data.shoot_timer = player_data.shot_rate
-			MUZZLE_OFFSET :: 40.0
+			MUZZLE_OFFSET :: 20.0
 			BULLET_GAP :: 12
 
 			for i in 0 ..< 2 {
@@ -101,6 +112,7 @@ handle_input :: proc(game: ^Game) {
 				bullet := entity_create_at(game, .Bullet, bullet_position)
 				bullet_data := bullet.data.(Bullet_Data)
 				bullet.velocity = bullet_forward * bullet_data.bullet_speed
+				bullet.orientation = bullet_angle
 			}
 		}
 	}
@@ -171,13 +183,18 @@ draw :: proc(game: ^Game) {
 	for e in game.entities {
 		if !e.active do continue
 
+		if e.texture != nil {
+			src_rect := k2.get_texture_rect(e.texture^)
+			k2.draw_texture_rect(
+				e.texture^,
+				src_rect,
+				e.position,
+				{src_rect.w / 2.0, src_rect.h / 2.0},
+				e.orientation,
+			)
+		}
+
 		#partial switch e.kind {
-		case .Player:
-			k2.draw_rect({e.position.x, e.position.y, 64, 64}, k2.GRAY, e.pivot, e.orientation)
-
-		case .Bullet:
-			k2.draw_circle(e.position, 4, k2.YELLOW)
-
 		case .Enemy:
 			k2.draw_rect_outline(
 				{e.position.x - e.pivot.x, e.position.y - e.pivot.y, 32, 32},
