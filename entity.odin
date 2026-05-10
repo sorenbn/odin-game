@@ -39,7 +39,7 @@ Enemy_Data :: struct {
 	move_speed: f32,
 }
 
-create_entity :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
+entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 	entity := Entity {
 		kind   = kind,
 		active = true,
@@ -74,14 +74,14 @@ create_entity :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 	return &game.entities[len(game.entities) - 1]
 }
 
-create_entity_at :: proc(game: ^Game, kind: Entity_Kind, position: k2.Vec2) -> ^Entity {
-	entity := create_entity(game, kind)
+entity_create_at :: proc(game: ^Game, kind: Entity_Kind, position: k2.Vec2) -> ^Entity {
+	entity := entity_create(game, kind)
 	entity.position = position
 
 	return entity
 }
 
-get_world_collider_rect :: proc(entity: Entity) -> k2.Rect {
+entity_get_world_collider_rect :: proc(entity: Entity) -> k2.Rect {
 	return {
 		entity.position.x - entity.pivot.x + entity.collider.x,
 		entity.position.y - entity.pivot.y + entity.collider.y,

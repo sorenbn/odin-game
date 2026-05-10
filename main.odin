@@ -20,7 +20,7 @@ main :: proc() {
 		enemy_spawn_timer    = 1,
 	}
 
-	player := create_entity_at(
+	player := entity_create_at(
 		&game,
 		.Player,
 		{f32(k2.get_screen_width() / 2.0), f32(k2.get_screen_height()) / 1.1},
@@ -36,7 +36,7 @@ main :: proc() {
 		update_entities(&game)
 		update_collisions(&game)
 		draw(&game)
-		draw_debug(&game)
+		// draw_debug(&game)
 		cleanup_inactive_entities(&game)
 	}
 
@@ -60,7 +60,7 @@ handle_input :: proc(game: ^Game) {
 		if player_data.shoot_timer < 0 {
 			player_data.shoot_timer = player_data.shot_rate
 
-			bullet := create_entity_at(game, .Bullet, player.position + k2.Vec2{0, -40})
+			bullet := entity_create_at(game, .Bullet, player.position + k2.Vec2{0, -40})
 			bullet_data := bullet.data.(Bullet_Data)
 			bullet.velocity = k2.Vec2{0, -bullet_data.bullet_speed}
 		}
@@ -72,7 +72,7 @@ update_enemy_spawner :: proc(game: ^Game) {
 
 	if game.enemy_spawn_timer < 0 {
 		game.enemy_spawn_timer = game.enemy_spawn_tickrate
-		enemy := create_entity_at(game, .Enemy, {f32(rand.int_max(k2.get_screen_width())), -100})
+		enemy := entity_create_at(game, .Enemy, {f32(rand.int_max(k2.get_screen_width())), -100})
 		enemy_data := enemy.data.(Enemy_Data)
 		enemy.velocity = k2.Vec2{0, enemy_data.move_speed}
 	}
@@ -107,8 +107,8 @@ update_collisions :: proc(game: ^Game) {
 		for &other in game.entities[i + 1:] {
 			if !other.active || !other.active_collider do continue
 
-			entity_rect := get_world_collider_rect(entity)
-			other_rect := get_world_collider_rect(other)
+			entity_rect := entity_get_world_collider_rect(entity)
+			other_rect := entity_get_world_collider_rect(other)
 
 			if !k2.rect_overlapping(entity_rect, other_rect) do continue
 
@@ -156,7 +156,7 @@ draw_debug :: proc(game: ^Game) {
 
 			#partial switch e.kind {
 			case .Enemy, .Player:
-				k2.draw_rect(get_world_collider_rect(e), {0, 255, 0, 125})
+				k2.draw_rect(entity_get_world_collider_rect(e), {0, 255, 0, 125})
 
 			case .Bullet:
 				k2.draw_rect(
