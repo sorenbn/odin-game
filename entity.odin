@@ -13,6 +13,7 @@ Entity :: struct {
 	position:        k2.Vec2,
 	pivot:           k2.Vec2,
 	velocity:        k2.Vec2,
+	orientation:     f32,
 	active:          bool,
 	active_collider: bool,
 	collider:        k2.Rect,
@@ -51,7 +52,7 @@ entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 		entity.active_collider = true
 		entity.collider = {0, 0, 64, 64}
 		entity.data = Player_Data {
-			shot_rate   = 0.15,
+			shot_rate   = 0.1,
 			shoot_timer = 0.0,
 			move_speed  = 400.0,
 		}
@@ -59,7 +60,7 @@ entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 		entity.active_collider = true
 		entity.collider = {0, 0, 10, 10}
 		entity.data = Bullet_Data {
-			bullet_speed = 500.0,
+			bullet_speed = 900.0,
 		}
 	case .Enemy:
 		entity.pivot = {16, 16}

@@ -1,6 +1,8 @@
 package main
 
 import k2 "../../SDKs/karl2d"
+import "core:fmt"
+import "core:math/linalg"
 import "core:math/rand"
 
 Game :: struct {
@@ -12,8 +14,11 @@ Game :: struct {
 
 game: Game
 
+SCREEN_WIDTH :: 1280
+SCREEN_HEIGHT :: 720
+
 main :: proc() {
-	k2.init(720, 800, "k2d test")
+	k2.init(SCREEN_WIDTH, SCREEN_HEIGHT, "k2d test")
 
 	game = {
 		enemy_spawn_tickrate = 1,
@@ -23,7 +28,7 @@ main :: proc() {
 	player := entity_create_at(
 		&game,
 		.Player,
-		{f32(k2.get_screen_width() / 2.0), f32(k2.get_screen_height()) / 1.1},
+		{f32(k2.get_screen_width() / 2.0), f32(k2.get_screen_height()) / 2.0},
 	)
 
 	game.player_index = len(game.entities) - 1
@@ -44,25 +49,59 @@ main :: proc() {
 }
 
 handle_input :: proc(game: ^Game) {
+	input: k2.Vec2 = {}
 	player := &game.entities[game.player_index]
 	player_data := &player.data.(Player_Data)
-	player.velocity = {}
 
 	if k2.key_is_held(.Left) || k2.key_is_held(.A) {
-		player.velocity.x -= player_data.move_speed
+		input.x -= 1
 	}
 
 	if k2.key_is_held(.Right) || k2.key_is_held(.D) {
-		player.velocity.x += player_data.move_speed
+		input.x += 1
 	}
 
-	if k2.key_is_held(.Space) || k2.key_is_held(.Enter) {
+	if k2.key_is_held(.Up) || k2.key_is_held(.W) {
+		input.y -= 1
+	}
+
+	if k2.key_is_held(.Down) || k2.key_is_held(.S) {
+		input.y += 1
+	}
+
+	if linalg.length2(input) > 1 {
+		input = linalg.normalize(input)
+	}
+
+	mouse_pos := k2.get_mouse_position()
+	aim_direction := linalg.normalize(mouse_pos - player.position)
+
+	player.velocity = input * player_data.move_speed
+	player.orientation = f32(linalg.atan2(aim_direction.y, aim_direction.x))
+
+	if k2.mouse_button_is_held(.Left) {
 		if player_data.shoot_timer < 0 {
 			player_data.shoot_timer = player_data.shot_rate
+			MUZZLE_OFFSET :: 40.0
+			BULLET_GAP :: 12
 
-			bullet := entity_create_at(game, .Bullet, player.position + k2.Vec2{0, -40})
-			bullet_data := bullet.data.(Bullet_Data)
-			bullet.velocity = k2.Vec2{0, -bullet_data.bullet_speed}
+			for i in 0 ..< 2 {
+				spread := rand.float32_range(-0.04, 0.04)
+				bullet_angle := player.orientation + spread
+				bullet_forward := k2.Vec2 {
+					linalg.cos(player.orientation + spread),
+					linalg.sin(player.orientation + spread),
+				}
+				right := k2.Vec2{-bullet_forward.y, bullet_forward.x}
+				side_offset := f32(i * 2 - 1) * BULLET_GAP
+
+				bullet_position :=
+					player.position + bullet_forward * MUZZLE_OFFSET + right * side_offset
+
+				bullet := entity_create_at(game, .Bullet, bullet_position)
+				bullet_data := bullet.data.(Bullet_Data)
+				bullet.velocity = bullet_forward * bullet_data.bullet_speed
+			}
 		}
 	}
 }
@@ -93,7 +132,10 @@ update_entities :: proc(game: ^Game) {
 			player_data.shoot_timer -= delta_time
 
 		case .Bullet:
-			if e.position.y < 0 {
+			if e.position.x < 0 ||
+			   e.position.y < 0 ||
+			   e.position.x > f32(k2.get_screen_width()) ||
+			   e.position.y > f32(k2.get_screen_height()) {
 				e.active = false
 			}
 		}
@@ -131,7 +173,7 @@ draw :: proc(game: ^Game) {
 
 		#partial switch e.kind {
 		case .Player:
-			k2.draw_rect({e.position.x, e.position.y, 64, 64}, k2.GRAY, e.pivot)
+			k2.draw_rect({e.position.x, e.position.y, 64, 64}, k2.GRAY, e.pivot, e.orientation)
 
 		case .Bullet:
 			k2.draw_circle(e.position, 4, k2.YELLOW)
