@@ -1,6 +1,7 @@
 package main
 
 import k2 "../../SDKs/karl2d"
+import "base:runtime"
 import "core:math/linalg"
 import "core:math/rand"
 import "utils"
@@ -31,6 +32,7 @@ Entity :: struct {
 	collider:        k2.Rect,
 	team:            Entity_Team,
 	texture:         ^k2.Texture,
+	texture_rect:    k2.Rect,
 	data:            Entity_Data,
 }
 
@@ -255,6 +257,13 @@ update_entities :: proc(game: ^Game) {
 		case .Player:
 			player_data := &e.data.(Player_Data)
 			player_data.shoot_timer -= delta_time
+			size := k2.Vec2{e.texture_rect.w, e.texture_rect.h}
+
+			e.position = linalg.clamp(
+				e.position,
+				size / 2,
+				k2.Vec2{f32(k2.get_screen_width()), f32(k2.get_screen_height())} - size / 2,
+			)
 
 		case .Player_Bullet:
 			if e.position.x < 0 ||
@@ -371,7 +380,9 @@ entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 	entity := ENTITY_TEMPLATES[kind]
 	entity.kind = kind
 	entity.active = true
-	entity.texture = get_texture_for_kind(&game.assets, kind)
+	texture, rect := get_texture_for_kind(&game.assets, kind)
+	entity.texture = texture
+	entity.texture_rect = rect
 
 	append(&game.entities, entity)
 	return &game.entities[len(game.entities) - 1]
@@ -384,18 +395,19 @@ entity_create_at :: proc(game: ^Game, kind: Entity_Kind, position: k2.Vec2) -> ^
 	return entity
 }
 
-get_texture_for_kind :: proc(assets: ^Assets, kind: Entity_Kind) -> ^k2.Texture {
+get_texture_for_kind :: proc(assets: ^Assets, kind: Entity_Kind) -> (^k2.Texture, k2.Rect) {
 	switch kind {
 	case .Player:
-		return &assets.player
+		return &assets.player, k2.get_texture_rect(assets.player)
 	case .Player_Bullet:
-		return &assets.bullet
+		return &assets.bullet, k2.get_texture_rect(assets.bullet)
 	case .Enemy_Seeker:
-		return &assets.seeker
+		return &assets.seeker, k2.get_texture_rect(assets.seeker)
 	case .Enemy_Wanderer:
-		return &assets.wanderer
+		return &assets.wanderer, k2.get_texture_rect(assets.wanderer)
 	}
-	return nil
+
+	return nil, {}
 }
 
 entity_get_world_collider_rect :: proc(entity: Entity) -> k2.Rect {
