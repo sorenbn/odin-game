@@ -12,6 +12,8 @@ Game :: struct {
 	assets:                 Assets,
 	enemy_spawn_chance:     i32,
 	blackhole_spawn_chance: i32,
+	blackhole_count:        i32,
+	blackhole_max_count:    i32,
 	enemy_safe_zone:        k2.Rect,
 }
 
@@ -71,6 +73,7 @@ Entity_Kind :: enum {
 }
 
 Entity_Team :: enum {
+	Any,
 	Player,
 	Enemey,
 }
@@ -97,7 +100,7 @@ ENTITY_TEMPLATES := [Entity_Kind]Entity {
 		collider = {0, 0, 32, 32},
 		team = .Enemey,
 		max_heatlh = 1,
-		data = Enemy_Data{move_speed = 200.0},
+		data = Enemy_Data{move_speed = 100.0},
 	},
 	.Enemy_Wanderer = Entity {
 		pivot = {16, 16},
@@ -105,13 +108,13 @@ ENTITY_TEMPLATES := [Entity_Kind]Entity {
 		collider = {0, 0, 32, 32},
 		team = .Enemey,
 		max_heatlh = 1,
-		data = Enemy_Data{move_speed = 100.0},
+		data = Enemy_Data{move_speed = 10.0},
 	},
 	.Enemy_BackHole = Entity {
 		active_collider = true,
 		pivot = {16, 16},
 		collider = {0, 0, 32, 32},
-		team = .Enemey,
+		team = .Any,
 		max_heatlh = 10,
 		data = Enemy_Data{},
 	},
@@ -137,6 +140,7 @@ main :: proc() {
 		assets                 = assets,
 		enemy_spawn_chance     = 100,
 		blackhole_spawn_chance = 300,
+		blackhole_max_count    = 2,
 		enemy_safe_zone        = k2.rect_shrink(
 			k2.Rect{0, 0, f32(k2.get_screen_width()), f32(k2.get_screen_height())},
 			64,
@@ -239,9 +243,12 @@ update_enemy_spawner :: proc(game: ^Game) {
 		enemy := entity_create_at(game, .Enemy_Wanderer, spawn_pos)
 	}
 
-	if rand.int31_max(game.blackhole_spawn_chance) == 0 {
+	if game.blackhole_count < game.blackhole_max_count &&
+	   rand.int31_max(game.blackhole_spawn_chance) == 0 {
 		spawn_pos := get_enemy_spawn_pos(player_pos)
 		black_hole := entity_create_at(game, .Enemy_BackHole, spawn_pos)
+
+		game^.blackhole_count += 1
 	}
 }
 
@@ -321,7 +328,8 @@ update_entities :: proc(game: ^Game) {
 				linalg.sin(enemy_data.wander_angle),
 			}
 
-			e.velocity = forward * enemy_data.move_speed
+			e.velocity += forward * enemy_data.move_speed
+			e.velocity *= 0.8
 			e.orientation += 0.01
 
 		case .Enemy_BackHole:
@@ -337,11 +345,11 @@ update_entities :: proc(game: ^Game) {
 					other.velocity += (other.position - e.position) * 0.3
 					other.orientation = linalg.atan2(other.velocity.y, other.velocity.x)
 				} else {
-					// displacement := e.position - other.position
-					// length := linalg.length(displacement)
+					displacement := e.position - other.position
+					length := linalg.length(displacement)
 
-					// other.velocity +=
-					// 	displacement * f32((linalg.lerp(f32(2.0), f32(0.0), f32(length / 250.0))))
+					other.velocity +=
+						displacement * f32((linalg.lerp(f32(4.0), f32(0.0), f32(length / 250.0))))
 				}
 			}
 		}
@@ -489,6 +497,7 @@ cleanup_inactive_entities :: proc(game: ^Game) {
 	i := 0
 	for i < len(game.entities) {
 		if !game.entities[i].active {
+			if game.entities[i].kind == .Enemy_BackHole do game^.blackhole_count -= 1
 			unordered_remove_dynamic_array(&game.entities, i)
 			continue
 		}
