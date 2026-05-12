@@ -7,18 +7,20 @@ import "core:math/rand"
 import "utils"
 
 Game :: struct {
-	player_index:       u32,
-	entities:           [dynamic]Entity,
-	assets:             Assets,
-	enemy_spawn_chance: i32,
-	enemy_safe_zone:    k2.Rect,
+	player_index:           u32,
+	entities:               [dynamic]Entity,
+	assets:                 Assets,
+	enemy_spawn_chance:     i32,
+	blackhole_spawn_chance: i32,
+	enemy_safe_zone:        k2.Rect,
 }
 
 Assets :: struct {
-	player:   k2.Texture,
-	bullet:   k2.Texture,
-	seeker:   k2.Texture,
-	wanderer: k2.Texture,
+	player:     k2.Texture,
+	bullet:     k2.Texture,
+	seeker:     k2.Texture,
+	wanderer:   k2.Texture,
+	black_hole: k2.Texture,
 }
 
 Entity :: struct {
@@ -26,7 +28,10 @@ Entity :: struct {
 	position:        k2.Vec2,
 	pivot:           k2.Vec2,
 	velocity:        k2.Vec2,
+	health:          int,
+	max_heatlh:      int,
 	orientation:     f32,
+	scale:           f32,
 	active:          bool,
 	active_collider: bool,
 	collider:        k2.Rect,
@@ -62,6 +67,7 @@ Entity_Kind :: enum {
 	Player_Bullet,
 	Enemy_Seeker,
 	Enemy_Wanderer,
+	Enemy_BackHole,
 }
 
 Entity_Team :: enum {
@@ -76,11 +82,13 @@ ENTITY_TEMPLATES := [Entity_Kind]Entity {
 		collider = {0, 0, 64, 64},
 		team = .Player,
 		data = Player_Data{shot_rate = 0.1, shoot_timer = 0.0, move_speed = 400.0},
+		max_heatlh = 3,
 	},
 	.Player_Bullet = Entity {
 		active_collider = true,
 		collider = {0, 0, 10, 10},
 		team = .Player,
+		max_heatlh = 1,
 		data = Bullet_Data{bullet_speed = 900.0},
 	},
 	.Enemy_Seeker = Entity {
@@ -88,6 +96,7 @@ ENTITY_TEMPLATES := [Entity_Kind]Entity {
 		active_collider = true,
 		collider = {0, 0, 32, 32},
 		team = .Enemey,
+		max_heatlh = 1,
 		data = Enemy_Data{move_speed = 200.0},
 	},
 	.Enemy_Wanderer = Entity {
@@ -95,7 +104,16 @@ ENTITY_TEMPLATES := [Entity_Kind]Entity {
 		active_collider = true,
 		collider = {0, 0, 32, 32},
 		team = .Enemey,
+		max_heatlh = 1,
 		data = Enemy_Data{move_speed = 100.0},
+	},
+	.Enemy_BackHole = Entity {
+		active_collider = true,
+		pivot = {16, 16},
+		collider = {0, 0, 32, 32},
+		team = .Enemey,
+		max_heatlh = 10,
+		data = Enemy_Data{},
 	},
 }
 
@@ -108,16 +126,18 @@ main :: proc() {
 	k2.init(SCREEN_WIDTH, SCREEN_HEIGHT, "k2d test")
 
 	assets := Assets {
-		player   = k2.load_texture_from_file("Art/Player.png"),
-		bullet   = k2.load_texture_from_file("Art/Bullet.png"),
-		seeker   = k2.load_texture_from_file("Art/Seeker.png"),
-		wanderer = k2.load_texture_from_file("Art/Wanderer.png"),
+		player     = k2.load_texture_from_file("Art/Player.png"),
+		bullet     = k2.load_texture_from_file("Art/Bullet.png"),
+		seeker     = k2.load_texture_from_file("Art/Seeker.png"),
+		wanderer   = k2.load_texture_from_file("Art/Wanderer.png"),
+		black_hole = k2.load_texture_from_file("Art/Black Hole.png"),
 	}
 
 	game = {
-		assets             = assets,
-		enemy_spawn_chance = 100,
-		enemy_safe_zone    = k2.rect_shrink(
+		assets                 = assets,
+		enemy_spawn_chance     = 100,
+		blackhole_spawn_chance = 300,
+		enemy_safe_zone        = k2.rect_shrink(
 			k2.Rect{0, 0, f32(k2.get_screen_width()), f32(k2.get_screen_height())},
 			64,
 			64,
@@ -207,42 +227,40 @@ handle_input :: proc(game: ^Game) {
 }
 
 update_enemy_spawner :: proc(game: ^Game) {
-	MIN_SPAWN_DISTANCE_FROM_PLAYER :: 500.0
 	player_pos := game.entities[game.player_index].position
 
 	if rand.int31_max(game.enemy_spawn_chance) == 0 {
-		spawn_pos := k2.Vec2 {
-			f32(rand.int_max(k2.get_screen_width())),
-			f32(rand.int_max(k2.get_screen_height())),
-		}
-
-		for linalg.length2(player_pos - spawn_pos) <
-		    MIN_SPAWN_DISTANCE_FROM_PLAYER * MIN_SPAWN_DISTANCE_FROM_PLAYER {
-			spawn_pos = k2.Vec2 {
-				f32(rand.int_max(k2.get_screen_width())),
-				f32(rand.int_max(k2.get_screen_height())),
-			}
-		}
-
+		spawn_pos := get_enemy_spawn_pos(player_pos)
 		enemy := entity_create_at(game, .Enemy_Seeker, spawn_pos)
 	}
 
 	if rand.int31_max(game.enemy_spawn_chance) == 0 {
-		spawn_pos := k2.Vec2 {
+		spawn_pos := get_enemy_spawn_pos(player_pos)
+		enemy := entity_create_at(game, .Enemy_Wanderer, spawn_pos)
+	}
+
+	if rand.int31_max(game.blackhole_spawn_chance) == 0 {
+		spawn_pos := get_enemy_spawn_pos(player_pos)
+		black_hole := entity_create_at(game, .Enemy_BackHole, spawn_pos)
+	}
+}
+
+get_enemy_spawn_pos :: proc(player_pos: k2.Vec2) -> k2.Vec2 {
+	MIN_SPAWN_DISTANCE_FROM_PLAYER :: 500.0
+	spawn_pos := k2.Vec2 {
+		f32(rand.int_max(k2.get_screen_width())),
+		f32(rand.int_max(k2.get_screen_height())),
+	}
+
+	for linalg.length2(player_pos - spawn_pos) <
+	    MIN_SPAWN_DISTANCE_FROM_PLAYER * MIN_SPAWN_DISTANCE_FROM_PLAYER {
+		spawn_pos = k2.Vec2 {
 			f32(rand.int_max(k2.get_screen_width())),
 			f32(rand.int_max(k2.get_screen_height())),
 		}
-
-		for linalg.length2(player_pos - spawn_pos) <
-		    MIN_SPAWN_DISTANCE_FROM_PLAYER * MIN_SPAWN_DISTANCE_FROM_PLAYER {
-			spawn_pos = k2.Vec2 {
-				f32(rand.int_max(k2.get_screen_width())),
-				f32(rand.int_max(k2.get_screen_height())),
-			}
-		}
-
-		enemy := entity_create_at(game, .Enemy_Wanderer, spawn_pos)
 	}
+
+	return spawn_pos
 }
 
 update_entities :: proc(game: ^Game) {
@@ -276,7 +294,8 @@ update_entities :: proc(game: ^Game) {
 		case .Enemy_Seeker:
 			enemy_data := &e.data.(Enemy_Data)
 			direction := linalg.normalize(player_position - e.position)
-			e.velocity = direction * enemy_data.move_speed
+			e.velocity += direction * enemy_data.move_speed
+			e.velocity *= 0.8
 			e.orientation = linalg.atan2(direction.y, direction.x)
 
 		case .Enemy_Wanderer:
@@ -304,6 +323,27 @@ update_entities :: proc(game: ^Game) {
 
 			e.velocity = forward * enemy_data.move_speed
 			e.orientation += 0.01
+
+		case .Enemy_BackHole:
+			e.scale = 1.0 + 0.1 * f32(linalg.sin(10 * k2.get_time()))
+
+			query_buffer: [128]u32
+			nearby := entity_get_nearby(e.position, 200.0, query_buffer[:])
+
+			for index in nearby {
+				other := &game.entities[index]
+
+				if other.kind == .Player_Bullet {
+					other.velocity += (other.position - e.position) * 0.3
+					other.orientation = linalg.atan2(other.velocity.y, other.velocity.x)
+				} else {
+					// displacement := e.position - other.position
+					// length := linalg.length(displacement)
+
+					// other.velocity +=
+					// 	displacement * f32((linalg.lerp(f32(2.0), f32(0.0), f32(length / 250.0))))
+				}
+			}
 		}
 
 		e.position += e.velocity * delta_time
@@ -324,8 +364,11 @@ update_collisions :: proc(game: ^Game) {
 
 			if !k2.rect_overlapping(entity_rect, other_rect) do continue
 
-			entity.active = false
-			other.active = false
+			entity.health -= 1
+			other.health -= 1
+
+			if entity.health <= 0 do entity.active = false
+			if other.health <= 0 do other.active = false
 		}
 	}
 }
@@ -337,12 +380,12 @@ draw :: proc(game: ^Game) {
 		if !e.active do continue
 
 		if e.texture != nil {
-			src_rect := k2.get_texture_rect(e.texture^)
-			k2.draw_texture_rect(
+			dest_rect := utils.rect_scale(e.texture_rect, e.scale)
+			k2.draw_texture_fit(
 				e.texture^,
-				src_rect,
-				e.position,
-				{src_rect.w / 2.0, src_rect.h / 2.0},
+				e.texture_rect,
+				{e.position.x, e.position.y, dest_rect.w, dest_rect.h},
+				{dest_rect.w / 2.0, dest_rect.h / 2.0},
 				e.orientation,
 			)
 		}
@@ -357,8 +400,8 @@ draw_debug :: proc(game: ^Game) {
 
 		if e.active_collider {
 
-			#partial switch e.kind {
-			case .Enemy_Seeker, .Player, .Enemy_Wanderer:
+			switch e.kind {
+			case .Enemy_Seeker, .Player, .Enemy_Wanderer, .Enemy_BackHole:
 				k2.draw_rect(entity_get_world_collider_rect(e), {0, 255, 0, 125})
 
 			case .Player_Bullet:
@@ -380,6 +423,8 @@ entity_create :: proc(game: ^Game, kind: Entity_Kind) -> ^Entity {
 	entity := ENTITY_TEMPLATES[kind]
 	entity.kind = kind
 	entity.active = true
+	entity.scale = 1.0
+	entity.health = entity.max_heatlh
 	texture, rect := get_texture_for_kind(&game.assets, kind)
 	entity.texture = texture
 	entity.texture_rect = rect
@@ -405,6 +450,8 @@ get_texture_for_kind :: proc(assets: ^Assets, kind: Entity_Kind) -> (^k2.Texture
 		return &assets.seeker, k2.get_texture_rect(assets.seeker)
 	case .Enemy_Wanderer:
 		return &assets.wanderer, k2.get_texture_rect(assets.wanderer)
+	case .Enemy_BackHole:
+		return &assets.black_hole, k2.get_texture_rect(assets.wanderer)
 	}
 
 	return nil, {}
@@ -417,6 +464,25 @@ entity_get_world_collider_rect :: proc(entity: Entity) -> k2.Rect {
 		entity.collider.w,
 		entity.collider.h,
 	}
+}
+
+entity_get_nearby :: proc(position: k2.Vec2, radius: f32, buffer: []u32) -> []u32 {
+	count := 0
+	radius_sqr := radius * radius
+
+	for i in 0 ..< len(game.entities) {
+		if count > len(buffer) do break
+
+		e := &game.entities[i]
+		if !e.active do continue
+
+		if linalg.length2(e.position - position) <= radius_sqr {
+			buffer[count] = u32(i)
+			count += 1
+		}
+	}
+
+	return buffer[:count]
 }
 
 cleanup_inactive_entities :: proc(game: ^Game) {
