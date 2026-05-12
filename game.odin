@@ -60,8 +60,11 @@ Bullet_Data :: struct {
 }
 
 Enemy_Data :: struct {
-	move_speed:   f32,
-	wander_angle: f32,
+	move_speed:              f32,
+	wander_angle:            f32,
+	blackhole_repel_force:   f32,
+	blackhole_suction_force: f32,
+	return_to_center_force:  f32,
 }
 
 Entity_Kind :: enum {
@@ -116,7 +119,11 @@ ENTITY_TEMPLATES := [Entity_Kind]Entity {
 		collider = {0, 0, 32, 32},
 		team = .Any,
 		max_heatlh = 10,
-		data = Enemy_Data{},
+		data = Enemy_Data {
+			blackhole_repel_force = 0.2,
+			blackhole_suction_force = 100.0,
+			return_to_center_force = 10.0,
+		},
 	},
 }
 
@@ -333,6 +340,7 @@ update_entities :: proc(game: ^Game) {
 			e.orientation += 0.01
 
 		case .Enemy_BackHole:
+			enemy_data := &e.data.(Enemy_Data)
 			e.scale = 1.0 + 0.1 * f32(linalg.sin(10 * k2.get_time()))
 
 			query_buffer: [128]u32
@@ -342,15 +350,35 @@ update_entities :: proc(game: ^Game) {
 				other := &game.entities[index]
 
 				if other.kind == .Player_Bullet {
-					other.velocity += (other.position - e.position) * 0.3
+					other.velocity +=
+						(other.position - e.position) * enemy_data.blackhole_repel_force
 					other.orientation = linalg.atan2(other.velocity.y, other.velocity.x)
 				} else {
 					displacement := e.position - other.position
-					length := linalg.length(displacement)
+					distance := linalg.length(displacement)
 
-					other.velocity +=
-						displacement * f32((linalg.lerp(f32(4.0), f32(0.0), f32(length / 250.0))))
+					if distance > 0.001 {
+
+						dir := displacement / distance
+
+						strength := linalg.lerp(f32(3.0), f32(0.0), distance / 250.0)
+
+						other.velocity += dir * strength * enemy_data.blackhole_suction_force
+					}
 				}
+			}
+
+			if !k2.point_in_rect(e.position, game.enemy_safe_zone) {
+
+				center := k2.Vec2 {
+					f32(k2.get_screen_width()) / 2.0,
+					f32(k2.get_screen_height()) / 2.0,
+				}
+
+				dir := linalg.normalize(center - e.position)
+
+				e.velocity += dir * enemy_data.return_to_center_force
+				e.velocity *= 0.8
 			}
 		}
 
